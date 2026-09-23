@@ -3,6 +3,7 @@ module;
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <iostream>
 #include <numeric>
 #include <random>
 #include <stdexcept>
@@ -243,7 +244,60 @@ public:
     }
 
     void action(Card card, int destination);
+    void visualize(std::ostream& out = std::cout) const;
 };
+
+void Solitaire::visualize(std::ostream& out) const {
+    // Suit parity matches Card::color(): clubs/spades black, diamonds/hearts red.
+    constexpr char suits[] = "CDSH";
+    constexpr const char* ranks[] = {
+        "--", " A", " 2", " 3", " 4", " 5", " 6",
+        " 7", " 8", " 9", "10", " J", " Q", " K"
+    };
+    const auto print_card = [&](Card card) {
+        out << '[' << ranks[card.number()] << suits[card.suit()] << ']';
+    };
+
+    out << "Foundations:";
+    for (int suit = 0; suit < 4; ++suit) {
+        out << ' ' << suits[suit] << ':';
+        if (towers_[suit] == 0) {
+            out << "[---]";
+        } else {
+            print_card(Card{towers_[suit], suit});
+        }
+    }
+    out << "\nStock (* = usable):";
+    if (deck_.empty()) {
+        out << " (empty)";
+    }
+    const auto& stock = deck_.cards();
+    for (std::size_t i = 0; i < stock.size(); ++i) {
+        out << (i % 8 == 0 ? "\n  " : " ");
+        print_card(stock[i]);
+        out << (deck_.usable(i) ? '*' : ' ');
+    }
+    out << "\nTableau (### = hidden, --- = empty):\n"
+        << "   0     1     2     3     4     5     6\n";
+
+    std::size_t rows = 1;
+    for (const Column& column : board_) {
+        rows = std::max(rows, column.size());
+    }
+    for (std::size_t row = 0; row < rows; ++row) {
+        for (const Column& column : board_) {
+            out << ' ';
+            if (row < column.hidden()) {
+                out << "[###]";
+            } else if (row < column.size()) {
+                print_card(column[row]);
+            } else {
+                out << (row == 0 ? "[---]" : "     ");
+            }
+        }
+        out << '\n';
+    }
+}
 
 void Solitaire::action(Card card, int destination) {
     int kind = 0;

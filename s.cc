@@ -1,5 +1,6 @@
 module;
 
+#include <iostream>
 #include <optional>
 #include <set>
 #include <vector>
@@ -165,6 +166,8 @@ export bool greedy_solve(Solitaire& game, int limit = 10000) {
             return false;
         }
         if (!greedy_step(game)) {
+            std::cout << "Greedy solver stuck (no greedy move possible).\n";
+            game.visualize();
             return false;
         }
     }
