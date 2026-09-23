@@ -156,7 +156,7 @@ export bool greedy_step(Solitaire& game) {
     return false;
 }
 
-export bool greedy_solve(Solitaire& game, int limit = 10000) {
+export bool greedy_solve(Solitaire& game, int limit = 10000, bool verbose = true) {
     if (limit < 0) {
         return false;
     }
@@ -166,8 +166,10 @@ export bool greedy_solve(Solitaire& game, int limit = 10000) {
             return false;
         }
         if (!greedy_step(game)) {
-            std::cout << "Greedy solver stuck (no greedy move possible).\n";
-            game.visualize();
+            if (verbose) {
+                std::cout << "Greedy solver stuck (no greedy move possible).\n";
+                game.visualize();
+            }
             return false;
         }
     }

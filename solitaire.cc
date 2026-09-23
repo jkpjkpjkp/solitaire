@@ -99,11 +99,16 @@ public:
 export class Deck {
     std::vector<Card> cards_;
     std::size_t cursor_ = SIZE_MAX;
-    std::size_t draws_ = 0;
+    std::size_t deal_number_ = 3;
 
 public:
     Deck() = default;
-    explicit Deck(std::vector<Card> cards) : cards_(std::move(cards)) {}
+    explicit Deck(std::vector<Card> cards, int deal_number = 3)
+        : cards_(std::move(cards)), deal_number_(deal_number) {
+        if (deal_number <= 0) {
+            throw std::invalid_argument("deal number must be positive");
+        }
+    }
 
     const std::vector<Card>& cards() const noexcept { return cards_; }
     const std::vector<Card>& deck() const noexcept { return cards_; }
@@ -116,10 +121,10 @@ public:
         if (position >= cards_.size()) {
             return false;
         }
-        if (position >= cursor_ && (position - cursor_) % 3 == 0 ) {
+        if (position >= cursor_ && (position - cursor_) % deal_number_ == 0) {
             return true;
         }
-        return position % 3 == 2 || position + 1 == cards_.size();
+        return position % deal_number_ == deal_number_ - 1 || position + 1 == cards_.size();
     }
 
     bool surface(std::size_t position) const noexcept { return usable(position); }
@@ -158,6 +163,7 @@ public:
 private:
     std::array<Column, 7> board_{};
     std::array<int, 4> towers_{};
+    int deal_number_;
     Deck deck_;
 
     bool locate(Card card, int& kind, int& index, int& row) const noexcept {
@@ -206,7 +212,8 @@ private:
     }
 
 public:
-    Solitaire(std::uint64_t seed = std::random_device{}()) {
+    Solitaire(std::uint64_t seed = std::random_device{}(), int deal_number = 3)
+        : deal_number_(deal_number), deck_({}, deal_number) {
         std::vector<Card> cards;
         cards.reserve(52);
         for (int suit = 0; suit < 4; ++suit) {
@@ -229,12 +236,13 @@ public:
             }
             board_[column] = Column(std::move(pile), static_cast<std::size_t>(column));
         }
-        deck_ = Deck({cards.begin() + static_cast<std::ptrdiff_t>(position), cards.end()});
+        deck_ = Deck({cards.begin() + static_cast<std::ptrdiff_t>(position), cards.end()}, deal_number_);
     }
 
-    Solitaire(std::array<Column, 7> board, std::vector<Card> deck = {})
-        : board_(std::move(board)), deck_(std::move(deck)) {}
+    Solitaire(std::array<Column, 7> board, std::vector<Card> deck = {}, int deal_number = 3)
+        : board_(std::move(board)), deal_number_(deal_number), deck_(std::move(deck), deal_number) {}
 
+    int deal_number() const noexcept { return deal_number_; }
     const std::array<int, 4>& towers() const noexcept { return towers_; }
     const Deck& deck() const noexcept { return deck_; }
     const std::array<Column, 7>& board() const noexcept { return board_; }
