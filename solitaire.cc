@@ -15,13 +15,19 @@ export class Card {
 private:
     int number_, suit_;
 public:
-    int number() { return number_; }
-    int color() { return suit_ & 1; }
+    Card(int number, int suit) : number_(number), suit_(suit) {}
+
+    int number() const noexcept { return number_; }
+    int suit() const noexcept { return suit_; }
+    int color() const noexcept { return suit_ & 1; }
+    bool operator ==(const Card & other) const = default;
 };
 
 export class Column {
+    friend class Solitaire;
+
     std::vector<Card> cards_;
-    std::size_t hidden_;
+    std::size_t hidden_ = 0;
 
     void reveal() noexcept {
         if (hidden_ > 0) {
@@ -31,13 +37,21 @@ export class Column {
     std::vector<Card> all() const { return cards_; }
 
 public:
-    std::size_t hidden() { return hidden_; }
-    bool empty() { return cards_.empty(); }
-    std::size_t size() { return cards_.size(); }
+    Column() = default;
+    explicit Column(std::vector<Card> cards, std::size_t hidden = 0)
+        : cards_(std::move(cards)), hidden_(hidden) {
+        if (hidden_ > cards_.size()) {
+            throw std::invalid_argument("hidden count exceeds column size");
+        }
+    }
+
+    std::size_t hidden() const noexcept { return hidden_; }
+    bool empty() const noexcept { return cards_.empty(); }
+    std::size_t size() const noexcept { return cards_.size(); }
 
     const Card& operator[](std::size_t index) const {
         if (index < hidden_) {
-            throw std::out_of_range("this card is still hidden")
+            throw std::out_of_range("card hidden");
         }
         return cards_.at(index);
     }
@@ -51,6 +65,19 @@ public:
 
     std::vector<Card> revealed() const {
         return {cards_.begin() + static_cast<std::ptrdiff_t>(hidden_), cards_.end()};
+    }
+
+    bool valid_run(std::size_t position) const noexcept {
+        if (position < hidden_ || position >= cards_.size()) {
+            return false;
+        }
+        for (std::size_t i = position + 1; i < cards_.size(); ++i) {
+            if (cards_[i - 1].number() != cards_[i].number() + 1
+                || cards_[i - 1].color() == cards_[i].color()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     void push_back(Card card) { cards_.push_back(card); }
@@ -134,7 +161,8 @@ private:
 
     bool locate(Card card, int& kind, int& index, int& row) const noexcept {
         for (int column = 0; column < 7; ++column) {
-            for (std::size_t position = 0; position < board_[column].size(); ++position) {
+            for (std::size_t position = board_[column].hidden();
+                 position < board_[column].size(); ++position) {
                 if (board_[column][position] == card) {
                     kind = 0;
                     index = column;
@@ -152,10 +180,10 @@ private:
             return true;
         }
 
-        if (card.suit >= 0 && card.suit < 4 && towers_[card.suit] >= card.number) {
+        if (card.suit() >= 0 && card.suit() < 4 && towers_[card.suit()] >= card.number()) {
             kind = 2;
-            index = card.suit;
-            row = card.number;
+            index = card.suit();
+            row = card.number();
             return true;
         }
         return false;
@@ -163,8 +191,8 @@ private:
 
     static bool fits(const Column& destination, Card card) noexcept {
         return destination.empty()
-            ? card.number == 13
-            : destination.last().number == card.number + 1
+            ? card.number() == 13
+            : destination.last().number() == card.number() + 1
                 && destination.last().color() != card.color();
     }
 
@@ -251,9 +279,9 @@ void Solitaire::action(Card card, int destination) {
         return;
     }
 
-    if (destination < 10 || destination > 13 || card.suit != destination - 10
-        || card.number < 1 || card.number > 13
-        || towers_[card.suit] != card.number - 1) {
+    if (destination < 10 || destination > 13 || card.suit() != destination - 10
+        || card.number() < 1 || card.number() > 13
+        || towers_[card.suit()] != card.number() - 1) {
         throw std::invalid_argument("invalid foundation move");
     }
     if (kind == 0 && row != static_cast<int>(board_[index].size()) - 1) {
@@ -269,5 +297,5 @@ void Solitaire::action(Card card, int destination) {
     } else if (!deck_.remove(static_cast<std::size_t>(row))) {
         throw std::invalid_argument("unavailable card");
     }
-    ++towers_[card.suit];
+    ++towers_[card.suit()];
 }
