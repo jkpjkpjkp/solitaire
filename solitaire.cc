@@ -177,14 +177,7 @@ private:
     }
 
 public:
-    Solitaire() {
-        
-    };
-
-    Solitaire(std::array<Column, 7> board, std::vector<Card> deck = {})
-        : board_(std::move(board)), deck_(std::move(deck)) {}
-
-    void init(std::uint64_t seed = std::random_device{}()) {
+    Solitaire(std::uint64_t seed = std::random_device{}()) {
         std::vector<Card> cards;
         cards.reserve(52);
         for (int suit = 0; suit < 4; ++suit) {
@@ -210,23 +203,12 @@ public:
         deck_ = Deck({cards.begin() + static_cast<std::ptrdiff_t>(position), cards.end()});
     }
 
+    Solitaire(std::array<Column, 7> board, std::vector<Card> deck = {})
+        : board_(std::move(board)), deck_(std::move(deck)) {}
+
     const std::array<int, 4>& towers() const noexcept { return towers_; }
     const Deck& deck() const noexcept { return deck_; }
     const std::array<Column, 7>& board() const noexcept { return board_; }
-
-    std::array<std::vector<Card>, 7> observable_board() const {
-        std::array<std::vector<Card>, 7> result;
-        for (int column = 0; column < 7; ++column) {
-            result[column] = board_[column].revealed();
-        }
-        return result;
-    }
-
-    std::vector<Card> observable_deck() const { return deck_.cards(); }
-
-    bool draw() noexcept { return deck_.draw(); }
-    void redeal() noexcept { deck_.redeal(); }
-    bool surface(std::size_t position) const noexcept { return deck_.surface(position); }
 
     bool complete() const noexcept {
         return std::all_of(towers_.begin(), towers_.end(), [](int count) { return count == 13; });
