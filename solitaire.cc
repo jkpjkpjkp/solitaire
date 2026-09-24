@@ -16,11 +16,13 @@ export class Card {
 private:
     int number_, suit_;
 public:
-    Card(int number, int suit) : number_(number), suit_(suit) {}
+    // Definitions in a named module are not implicitly inline. These hot
+    // accessors must remain available for inlining in the search module.
+    inline Card(int number, int suit) : number_(number), suit_(suit) {}
 
-    int number() const noexcept { return number_; }
-    int suit() const noexcept { return suit_; }
-    int color() const noexcept { return suit_ & 1; }
+    inline int number() const noexcept { return number_; }
+    inline int suit() const noexcept { return suit_; }
+    inline int color() const noexcept { return suit_ & 1; }
     bool operator ==(const Card & other) const = default;
 };
 
@@ -46,18 +48,18 @@ public:
         }
     }
 
-    std::size_t hidden() const noexcept { return hidden_; }
-    bool empty() const noexcept { return cards_.empty(); }
-    std::size_t size() const noexcept { return cards_.size(); }
+    inline std::size_t hidden() const noexcept { return hidden_; }
+    inline bool empty() const noexcept { return cards_.empty(); }
+    inline std::size_t size() const noexcept { return cards_.size(); }
 
-    const Card& operator[](std::size_t index) const {
+    inline const Card& operator[](std::size_t index) const {
         if (index < hidden_) {
             throw std::out_of_range("card hidden");
         }
         return cards_.at(index);
     }
 
-    const Card& last() const {
+    inline const Card& last() const {
         if (cards_.empty()) {
             throw std::out_of_range("empty column");
         }
@@ -68,15 +70,9 @@ public:
         return {cards_.begin() + static_cast<std::ptrdiff_t>(hidden_), cards_.end()};
     }
 
-    bool valid_run(std::size_t position) const noexcept {
+    inline bool exposed(std::size_t position) const noexcept {
         if (position < hidden_ || position >= cards_.size()) {
             return false;
-        }
-        for (std::size_t i = position + 1; i < cards_.size(); ++i) {
-            if (cards_[i - 1].number() != cards_[i].number() + 1
-                || cards_[i - 1].color() == cards_[i].color()) {
-                return false;
-            }
         }
         return true;
     }
@@ -110,15 +106,15 @@ public:
         }
     }
 
-    const std::vector<Card>& cards() const noexcept { return cards_; }
+    inline const std::vector<Card>& cards() const noexcept { return cards_; }
     const std::vector<Card>& deck() const noexcept { return cards_; }
     operator const std::vector<Card>&() const noexcept { return cards_; }
 
-    std::size_t cursor() const noexcept { return cursor_; }
-    std::size_t size() const noexcept { return cards_.size(); }
-    bool empty() const noexcept { return cards_.empty(); }
+    inline std::size_t cursor() const noexcept { return cursor_; }
+    inline std::size_t size() const noexcept { return cards_.size(); }
+    inline bool empty() const noexcept { return cards_.empty(); }
 
-    bool usable(std::size_t position) const noexcept {
+    inline bool usable(std::size_t position) const noexcept {
         if (position >= cards_.size()) {
             return false;
         }
@@ -130,7 +126,7 @@ public:
 
     bool surface(std::size_t position) const noexcept { return usable(position); }
 
-    bool contains(Card card, std::size_t& position) const noexcept {
+    inline bool contains(Card card, std::size_t& position) const noexcept {
         for (std::size_t i = 0; i < cards_.size(); ++i) {
             if (cards_[i] == card) {
                 position = i;
@@ -163,7 +159,7 @@ public:
 
 protected:
     std::array<Column, 7> board_{};
-    std::array<int, 4> towers_{};
+    std::array<int, 4> foundation_{};
     int deal_number_;
     Deck deck_;
 
@@ -188,7 +184,7 @@ protected:
             return true;
         }
 
-        if (card.suit() >= 0 && card.suit() < 4 && towers_[card.suit()] >= card.number()) {
+        if (card.suit() >= 0 && card.suit() < 4 && foundation_[card.suit()] >= card.number()) {
             kind = 2;
             index = card.suit();
             row = card.number();
@@ -197,7 +193,7 @@ protected:
         return false;
     }
 
-    static bool fits(const Column& destination, Card card) noexcept {
+    static inline bool fits(const Column& destination, Card card) noexcept {
         return destination.empty()
             ? card.number() == 13
             : destination.last().number() == card.number() + 1
@@ -227,7 +223,7 @@ public:
         std::shuffle(cards.begin(), cards.end(), generator);
 
         board_ = {};
-        towers_ = {};
+        foundation_ = {};
         std::size_t position = 0;
         for (int column = 0; column < 7; ++column) {
             std::vector<Card> pile;
@@ -244,12 +240,12 @@ public:
         : board_(std::move(board)), deal_number_(deal_number), deck_(std::move(deck), deal_number) {}
 
     int deal_number() const noexcept { return deal_number_; }
-    const std::array<int, 4>& towers() const noexcept { return towers_; }
-    const Deck& deck() const noexcept { return deck_; }
-    const std::array<Column, 7>& board() const noexcept { return board_; }
+    inline const std::array<int, 4>& foundation() const noexcept { return foundation_; }
+    inline const Deck& deck() const noexcept { return deck_; }
+    inline const std::array<Column, 7>& board() const noexcept { return board_; }
 
-    bool complete() const noexcept {
-        return std::all_of(towers_.begin(), towers_.end(), [](int count) { return count == 13; });
+    inline bool won() const noexcept {
+        return std::all_of(foundation_.begin(), foundation_.end(), [](int count) { return count == 13; });
     }
 
     void action(Card card, int destination);
@@ -270,10 +266,10 @@ void Solitaire::visualize(std::ostream& out) const {
     out << "Foundations:";
     for (int suit = 0; suit < 4; ++suit) {
         out << ' ' << suits[suit] << ':';
-        if (towers_[suit] == 0) {
+        if (foundation_[suit] == 0) {
             out << "[---]";
         } else {
-            print_card(Card{towers_[suit], suit});
+            print_card(Card{foundation_[suit], suit});
         }
     }
     out << "\nStock (* = usable):";
@@ -316,7 +312,7 @@ void Solitaire::action(Card card, int destination) {
         throw std::invalid_argument("unavailable card");
     }
 
-    if (kind == 0 && !board_[index].valid_run(static_cast<std::size_t>(row))) {
+    if (kind == 0 && !board_[index].exposed(static_cast<std::size_t>(row))) {
         throw std::invalid_argument("unavailable card");
     }
     if (kind == 1 && !deck_.usable(static_cast<std::size_t>(row))) {
@@ -340,13 +336,12 @@ void Solitaire::action(Card card, int destination) {
             board_[destination].push_back(card);
         }
         return;
+    } else if (10 <= destination && destination < 14) {
+        if (foundation_[card.suit()] != card.number() - 1) {
+            throw std::invalid_argument("invalid foundation move");
+        }
     }
 
-    if (destination < 10 || destination > 13 || card.suit() != destination - 10
-        || card.number() < 1 || card.number() > 13
-        || towers_[card.suit()] != card.number() - 1) {
-        throw std::invalid_argument("invalid foundation move");
-    }
     if (kind == 0 && row != static_cast<int>(board_[index].size()) - 1) {
         throw std::invalid_argument("only exposed card can enter foundation");
     }
@@ -360,5 +355,5 @@ void Solitaire::action(Card card, int destination) {
     } else if (!deck_.remove(static_cast<std::size_t>(row))) {
         throw std::invalid_argument("unavailable card");
     }
-    ++towers_[card.suit()];
+    ++foundation_[card.suit()];
 }
