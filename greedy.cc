@@ -115,7 +115,7 @@ std::vector<int> state_key(const Solitaire& game) {
         key.push_back(count);
     }
     key.push_back(static_cast<int>(game.deck().cursor()));
-    key.push_back(static_cast<int>(game.deck().cards().size()));
+    key.push_back(static_cast<int>(game.deck().size()));
     for (const Card& card : game.deck().cards()) {
         key.push_back(card.number());
         key.push_back(card.suit());

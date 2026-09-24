@@ -35,9 +35,9 @@ export class Column {
             --hidden_;
         }
     }
+public:
     std::vector<Card> all() const { return cards_; }
 
-public:
     Column() = default;
     explicit Column(std::vector<Card> cards, std::size_t hidden = 0)
         : cards_(std::move(cards)), hidden_(hidden) {
@@ -115,6 +115,7 @@ public:
     operator const std::vector<Card>&() const noexcept { return cards_; }
 
     std::size_t cursor() const noexcept { return cursor_; }
+    std::size_t size() const noexcept { return cards_.size(); }
     bool empty() const noexcept { return cards_.empty(); }
 
     bool usable(std::size_t position) const noexcept {
@@ -160,7 +161,7 @@ public:
         int to;
     };
 
-private:
+protected:
     std::array<Column, 7> board_{};
     std::array<int, 4> towers_{};
     int deal_number_;
