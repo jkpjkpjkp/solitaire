@@ -3,11 +3,12 @@
 # make run   builds and runs the random checks
 # make run ARGS="--deal 1 --visualize-failures 3" selects a deal and shows up to 3 failures
 # make run ARGS="--strategy uct --deal 3 --games 10" runs the UCT solver
+# make run ARGS="--max-parallel 4" limits concurrent random games to 4
 # make test  builds and runs the fixed checks
 # make clean removes generated build files
 CXX = clang++
 CXXFLAGS ?= -O2
-MODULE_FLAGS = -std=c++23 -fprebuilt-module-path=build
+MODULE_FLAGS = -std=c++23 -fprebuilt-module-path=build -pthread
 
 .PHONY: all random_check run test clean
 .DELETE_ON_ERROR:
@@ -49,7 +50,7 @@ build/random_check.o: random_check.cc build/solitaire.pcm build/solitaire_strate
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(MODULE_FLAGS) -c $< -o $@
 
 build/random_check: build/random_check.o build/solitaire.o build/greedy.o build/uct.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ $(LDLIBS) -pthread -o $@
 
 build/fixed_test.o: fixed_test.cc build/solitaire.pcm build/solitaire_strategy.pcm Makefile | build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(MODULE_FLAGS) -c $< -o $@

@@ -12,6 +12,13 @@ omitting `--deal` compares draw-one and draw-three on the same deals.
 UCT: its default of 100 trajectories is spent at **each decision**. Deals and
 searches use reproducible seeds; `--seed N` changes the sequence of deals.
 
+Random games run in parallel, defaulting to the available CPU count. Set the
+maximum with `make run ARGS="--max-parallel 4"`; use `--max-parallel 1` for a
+serial run. Each game compares the requested draw modes on the same deal.
+Seeds, totals, and the earliest failure boards are independent of worker count;
+failure boards print in game order after all games finish. UCT memory use grows
+with the number of concurrent games.
+
 ## UCT
 
 `uct.cc` implements the UCT algorithm from Bjarnason, Fern, and Tadepalli,

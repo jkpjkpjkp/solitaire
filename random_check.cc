@@ -1,10 +1,18 @@
+#include <algorithm>
+#include <atomic>
 #include <charconv>
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
+#include <map>
+#include <mutex>
 #include <random>
+#include <sstream>
+#include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <vector>
 
 import solitaire;
@@ -17,6 +25,7 @@ int main(int argc, char* argv[]) {
             << "  --strategy greedy|uct    Solver (default: greedy).\n"
             << "  --deal N                Draw N cards (positive integer; default: compare 1 and 3).\n"
             << "  --games N               Games per deal number (default: 1000).\n"
+            << "  --max-parallel N        Maximum concurrent games (default: available CPUs).\n"
             << "  --visualize-failures N   Show ASCII boards for at most N failed games (default: 0).\n"
             << "  --trajectories N        UCT rollouts per tree and decision (default: 100).\n"
             << "  --rollout-limit N       Maximum moves per rollout (default: 1000).\n"
@@ -28,6 +37,7 @@ int main(int argc, char* argv[]) {
     std::vector<int> deals{1, 3};
     int failure_limit = 0;
     int games = 1000;
+    unsigned max_parallel = std::max(1u, std::thread::hardware_concurrency());
     bool use_uct = false;
     UctOptions uct;
     std::uint64_t deal_seed = 0x5eedd03d12346748ULL;
@@ -40,7 +50,8 @@ int main(int argc, char* argv[]) {
         if (option != "--deal" && option != "--visualize-failures"
             && option != "--strategy" && option != "--games" && option != "--seed"
             && option != "--trajectories" && option != "--rollout-limit"
-            && option != "--sampling-width" && option != "--trees") {
+            && option != "--sampling-width" && option != "--trees"
+            && option != "--max-parallel") {
             std::cerr << "Unknown option: " << option << '\n';
             usage(std::cerr);
             return 1;
@@ -83,6 +94,8 @@ int main(int argc, char* argv[]) {
             failure_limit = number;
         } else if (option == "--games") {
             games = number;
+        } else if (option == "--max-parallel") {
+            max_parallel = number;
         } else if (option == "--trajectories") {
             uct.trajectories = number;
         } else if (option == "--rollout-limit") {
@@ -96,25 +109,52 @@ int main(int argc, char* argv[]) {
 
     constexpr int limit = 10000;
     std::mt19937_64 seeds(deal_seed);
+    std::vector<std::uint64_t> game_seeds(games);
+    for (auto& seed : game_seeds) seed = seeds();
     std::vector<int> wins(deals.size());
-    int failures_shown = 0;
+    std::map<std::pair<int, std::size_t>, std::string> failures;
+    std::mutex results_mutex;
+    std::atomic<std::size_t> next_game{0};
 
-    for (int game_number = 0; game_number < games; ++game_number) {
-        const std::uint64_t seed = seeds();
-        for (std::size_t mode = 0; mode < deals.size(); ++mode) {
-            UctSolitaire game(seed, deals[mode]);
-            uct.seed = seed ^ 0x756374ULL;
-            if (use_uct ? uct_solve(game, uct, limit, false) : greedy_solve(game, limit, false)) {
-                ++wins[mode];
-            } else if (failures_shown < failure_limit) {
-                ++failures_shown;
-                std::cout << "\nFailed game=" << game_number + 1
-                          << " deal=" << deals[mode] << " seed=" << seed << '\n';
-                game.visualize();
-                std::cout << '\n';
+    const auto worker = [&] {
+        auto options = uct;
+        while (true) {
+            const auto game_number = next_game.fetch_add(1, std::memory_order_relaxed);
+            if (game_number >= game_seeds.size()) return;
+            const auto seed = game_seeds[game_number];
+            for (std::size_t mode = 0; mode < deals.size(); ++mode) {
+                UctSolitaire game(seed, deals[mode]);
+                options.seed = seed ^ 0x756374ULL;
+                const bool won = use_uct ? uct_solve(game, options, limit, false)
+                                         : greedy_solve(game, limit, false);
+                std::lock_guard lock(results_mutex);
+                if (won) {
+                    ++wins[mode];
+                } else if (failure_limit > 0) {
+                    const auto key = std::pair{static_cast<int>(game_number), mode};
+                    // Retain only the earliest failures, regardless of completion order.
+                    if (failures.size() < static_cast<std::size_t>(failure_limit)
+                        || key < failures.rbegin()->first) {
+                        std::ostringstream out;
+                        out << "\nFailed game=" << game_number + 1
+                            << " deal=" << deals[mode] << " seed=" << seed << '\n';
+                        game.visualize(out);
+                        out << '\n';
+                        failures.emplace(key, out.str());
+                        if (failures.size() > static_cast<std::size_t>(failure_limit))
+                            failures.erase(std::prev(failures.end()));
+                    }
+                }
             }
         }
+    };
+    {
+        std::vector<std::jthread> workers;
+        const auto count = std::min(max_parallel, static_cast<unsigned>(games));
+        workers.reserve(count);
+        for (unsigned i = 0; i < count; ++i) workers.emplace_back(worker);
     }
+    for (const auto& [key, board] : failures) std::cout << board;
 
     const auto report = [&](int deal_number, int wins) {
         std::cout << "deal=" << deal_number << " games=" << games
